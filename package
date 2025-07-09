@@ -1,0 +1,92 @@
+const express = require("express");
+const { spawn } = require("child_process");
+const ffmpegPath = require("ffmpeg-static");
+
+const app = express();
+const rtmpUrl = process.env.STREAM_KEY;
+
+setInterval(() => {
+  require("http").get("https://rhinestone-hypnotic-ravioli.glitch.me/");
+}, 240000);
+
+// Pakistan Timezone-aware countdown
+function getPakistanTimeRemaining() {
+  const now = new Date();
+  const options = { timeZone: "Asia/Karachi" };
+  const pktTime = new Date(now.toLocaleString("en-US", options));
+  
+  const target = new Date(pktTime);
+  target.setHours(21, 0, 0, 0); // 9PM PKT
+  
+  if (pktTime >= target) {
+    target.setDate(target.getDate() + 1);
+  }
+  
+  return Math.floor((target - pktTime) / 1000);
+}
+
+function startStreaming() {
+  const duration = getPakistanTimeRemaining();
+  console.log(`⏳ Countdown started: ${duration} seconds until 9PM PKT`);
+
+  const ffmpeg = spawn(ffmpegPath, [
+    // Solid background (works reliably across platforms)
+    "-f", "lavfi",
+    "-i", `color=size=1280x720:rate=30:color=#001F3F`, // Dark blue background
+    
+    // Silent audio
+    "-f", "lavfi",
+    "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+    
+    // Dynamic countdown overlay
+    "-vf",
+    `drawtext=
+      fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:
+      fontsize=120:
+      fontcolor=gold:
+      text='%{eif\\:floor((${duration}-t)/3600)\\:d\\:2}\\:%{eif\\:floor(mod((${duration}-t)\\,3600)/60)\\:d\\:2}\\:%{eif\\:mod(mod((${duration}-t)\\,3600)\\,60)\\:d\\:2}':
+      x=(w-tw)/2:y=(h/2)-100,
+     
+     drawtext=
+      fontsize=40:
+      text='LIVE':
+      x=30:y=30:
+      fontcolor=white:
+      box=1:boxcolor=red@0.8,
+     
+     drawtext=
+      fontsize=30:
+      text='Parwarish Episode 27':
+      x=30:y=80:
+      fontcolor=white,
+     
+     drawtext=
+      fontsize=52:
+      text='Parwarish Episode 27 | Aina Asif Samar Jafri | 8 July 2025 (Eng Sub) | ARY Digital Drama':
+      x=w-mod(t*50\\,w+tw):y=h-50:
+      fontcolor=white`,
+
+    // Output settings
+    "-c:v", "libx264",
+    "-pix_fmt", "yuv420p",
+    "-preset", "veryfast",
+    "-c:a", "aac",
+    "-b:a", "150k",
+    "-t", duration.toString(),
+    "-f", "flv",
+    rtmpUrl
+  ]);
+
+  ffmpeg.stderr.on("data", (data) => console.error(`FFmpeg Error: ${data}`));
+  ffmpeg.on("close", (code) => {
+    console.log(`Countdown completed at ${new Date().toLocaleTimeString()}`);
+  });
+}
+
+app.get("/", (req, res) => res.send("🕌 Islamic Countdown Stream"));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server started on port ${PORT}`);
+  startStreaming();
+});
